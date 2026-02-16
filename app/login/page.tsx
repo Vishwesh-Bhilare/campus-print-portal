@@ -1,19 +1,12 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { useRouter } from "next/navigation";
+import { signIn } from "@/lib/auth";
 
 export default function LoginPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const role = searchParams.get("role");
-
+  const [role, setRole] = useState<"student" | "printer">("student");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,28 +20,20 @@ export default function LoginPage() {
     try {
       if (role === "printer") {
         if (email === "printer" && password === "print123") {
-          localStorage.setItem("role", "printer");
-          router.push("/dashboard");
+          document.cookie = "role=printer; path=/";
+          router.push("/dashboard/printer");
           return;
         } else {
           throw new Error("Invalid printer credentials");
         }
       }
 
-      // Student login
-      if (!email.endsWith("@mmcoe.edu.in")) {
-        throw new Error("Only @mmcoe.edu.in emails allowed");
-      }
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await signIn(email, password);
 
       if (error) throw error;
 
-      localStorage.setItem("role", "student");
-      router.push("/dashboard");
+      document.cookie = "role=student; path=/";
+      router.push("/dashboard/student");
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -56,28 +41,48 @@ export default function LoginPage() {
     }
   };
 
-  if (!role) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-gray-600">Invalid login route.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-md mx-auto py-16">
-      <h2 className="text-2xl font-bold mb-6 text-center capitalize">
-        {role} Login
-      </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white p-6 rounded-xl shadow-md w-full max-w-md"
+      >
+        <h2 className="text-2xl font-bold mb-4 text-center">
+          Campus Print Login
+        </h2>
 
-      <form onSubmit={handleLogin} className="space-y-4">
+        <div className="flex mb-4">
+          <button
+            type="button"
+            onClick={() => setRole("student")}
+            className={`flex-1 py-2 rounded-l-lg ${
+              role === "student"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200"
+            }`}
+          >
+            Student
+          </button>
+          <button
+            type="button"
+            onClick={() => setRole("printer")}
+            className={`flex-1 py-2 rounded-r-lg ${
+              role === "printer"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200"
+            }`}
+          >
+            Printer
+          </button>
+        </div>
+
         <input
           type="text"
           placeholder={role === "printer" ? "Username" : "Email"}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full border rounded-lg px-4 py-3"
+          className="w-full mb-3 px-3 py-2 border rounded-lg"
         />
 
         <input
@@ -86,33 +91,27 @@ export default function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full border rounded-lg px-4 py-3"
+          className="w-full mb-3 px-3 py-2 border rounded-lg"
         />
 
         {error && (
-          <p className="text-red-500 text-sm text-center">{error}</p>
+          <p className="text-red-500 text-sm mb-3">{error}</p>
         )}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition"
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
         >
           {loading ? "Logging in..." : "Login"}
         </button>
-      </form>
-
-      {role === "student" && (
-        <p className="text-center text-sm mt-6">
-          Don't have an account?{" "}
-          <span
-            onClick={() => router.push("/signup")}
-            className="text-blue-600 cursor-pointer"
-          >
-            Sign up
-          </span>
+        <p className="text-sm text-center mt-4">
+          Student?{" "}
+            <a href="/signup" className="text-blue-600 hover:underline">
+           Create Account
+            </a>
         </p>
-      )}
+      </form>
     </div>
   );
 }
