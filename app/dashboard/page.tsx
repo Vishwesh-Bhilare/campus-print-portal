@@ -1,29 +1,21 @@
-"use client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+export default async function DashboardPage() {
+  const cookieStore = await cookies();
+  const role = cookieStore.get("role")?.value;
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const [role, setRole] = useState<string | null>(null);
+  if (!role) {
+    redirect("/");
+  }
 
-  useEffect(() => {
-    const storedRole = localStorage.getItem("role");
-    if (!storedRole) {
-      router.push("/");
-    } else {
-      setRole(storedRole);
-    }
-  }, [router]);
+  if (role === "student") {
+    redirect("/dashboard/student");
+  }
 
-  useEffect(() => {
-    if (role === "student") {
-      router.push("/dashboard/student");
-    }
-    if (role === "printer") {
-      router.push("/dashboard/printer");
-    }
-  }, [role, router]);
+  if (role === "printer") {
+    redirect("/dashboard/printer");
+  }
 
-  return null;
+  redirect("/");
 }
