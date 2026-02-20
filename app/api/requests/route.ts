@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -6,68 +7,61 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET requests (student or printer)
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const studentId = searchParams.get("studentId");
+    const cookieStore = await cookies();
+    const role = cookieStore.get("role")?.value;
 
-    let query = supabase
-      .from("print_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (studentId) {
-      query = query.eq("student_id", studentId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
+    if (!role) {
       return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 
-    return NextResponse.json(data);
+    // STUDENT → only own requests
+    if (role === "student") {
+      const authHeader = cookieStore.get("sb-access-token")?.value;
+
+      if (!authHeader) {
+        return NextResponse.json([], { status: 200 });
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser(authHeader);
+
+      if (!user) {
+        return NextResponse.json([], { status: 200 });
+      }
+
+      const { data, error } = await supabase
+        .from("print_requests")
+        .select("*")
+        .eq("student_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return NextResponse.json(data || []);
+    }
+
+    // PRINTER → all requests
+    if (role === "printer") {
+      const { data, error } = await supabase
+        .from("print_requests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return NextResponse.json(data || []);
+    }
+
+    return NextResponse.json([], { status: 200 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Failed to fetch requests" },
-      { status: 500 }
-    );
-  }
-}
-
-// PATCH request to update status
-export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { id, status } = body;
-
-    if (!id || !status) {
-      return NextResponse.json(
-        { error: "Missing id or status" },
-        { status: 400 }
-      );
-    }
-
-    const { error } = await supabase
-      .from("print_requests")
-      .update({ status })
-      .eq("id", id);
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Status update failed" },
+      { error: error.message },
       { status: 500 }
     );
   }

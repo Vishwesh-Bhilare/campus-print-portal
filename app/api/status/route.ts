@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -6,21 +7,23 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function PATCH(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { id, status } = body;
+    const cookieStore = await cookies();
+    const role = cookieStore.get("role")?.value;
 
-    if (!id || !status) {
+    if (role !== "printer") {
       return NextResponse.json(
-        { error: "Missing id or status" },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 
-    if (!["pending", "ready", "collected"].includes(status)) {
+    const { id, status } = await req.json();
+
+    if (!id || !status) {
       return NextResponse.json(
-        { error: "Invalid status value" },
+        { error: "Missing fields" },
         { status: 400 }
       );
     }
@@ -30,17 +33,12 @@ export async function PATCH(req: NextRequest) {
       .update({ status })
       .eq("id", id);
 
-    if (error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Status update failed" },
+      { error: error.message },
       { status: 500 }
     );
   }
