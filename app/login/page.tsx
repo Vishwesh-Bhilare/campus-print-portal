@@ -2,87 +2,66 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/auth";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function LoginPage() {
   const router = useRouter();
-  const [role, setRole] = useState<"student" | "printer">("student");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: any) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
 
-    try {
-      if (role === "printer") {
-        if (email === "printer" && password === "print123") {
-          document.cookie = "role=printer; path=/";
-          router.push("/dashboard/printer");
-          return;
-        } else {
-          throw new Error("Invalid printer credentials");
-        }
-      }
+    // PRINTER LOGIN
+    if (email === "printer@admin.com" && password === "printer123") {
+      await fetch("/api/set-role", {
+        method: "POST",
+        body: JSON.stringify({ role: "printer" }),
+      });
 
-      const { error } = await signIn(email, password);
+      router.push("/dashboard/printer");
+      return;
+    }
 
-      if (error) throw error;
+    // STUDENT LOGIN
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      document.cookie = "role=student; path=/";
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (data.user) {
+      await fetch("/api/set-role", {
+        method: "POST",
+        body: JSON.stringify({ role: "student" }),
+      });
+
       router.push("/dashboard/student");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <form
-        onSubmit={handleLogin}
-        className="bg-white p-6 rounded-xl shadow-md w-full max-w-md"
-      >
-        <h2 className="text-2xl font-bold mb-4 text-center">
-          Campus Print Login
-        </h2>
+    <div className="max-w-md mx-auto mt-10 bg-white p-6 rounded-xl shadow">
+      <h2 className="text-xl font-bold mb-4">Login</h2>
 
-        <div className="flex mb-4">
-          <button
-            type="button"
-            onClick={() => setRole("student")}
-            className={`flex-1 py-2 rounded-l-lg ${
-              role === "student"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200"
-            }`}
-          >
-            Student
-          </button>
-          <button
-            type="button"
-            onClick={() => setRole("printer")}
-            className={`flex-1 py-2 rounded-r-lg ${
-              role === "printer"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200"
-            }`}
-          >
-            Printer
-          </button>
-        </div>
-
+      <form onSubmit={handleLogin} className="space-y-4">
         <input
-          type="text"
-          placeholder={role === "printer" ? "Username" : "Email"}
+          type="email"
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="w-full border p-2 rounded"
           required
-          className="w-full mb-3 px-3 py-2 border rounded-lg"
         />
 
         <input
@@ -90,26 +69,19 @@ export default function LoginPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="w-full border p-2 rounded"
           required
-          className="w-full mb-3 px-3 py-2 border rounded-lg"
         />
 
-        {error && (
-          <p className="text-red-500 text-sm mb-3">{error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-        >
-          {loading ? "Logging in..." : "Login"}
+        <button className="w-full bg-blue-600 text-white p-2 rounded">
+          Login
         </button>
+
         <p className="text-sm text-center mt-4">
           Student?{" "}
-            <a href="/signup" className="text-blue-600 hover:underline">
-           Create Account
-            </a>
+          <a href="/signup" className="text-blue-600 hover:underline">
+            Create Account
+          </a>
         </p>
       </form>
     </div>
