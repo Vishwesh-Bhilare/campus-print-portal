@@ -9,127 +9,96 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-function generateUID() {
-  return "STU-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-}
-
 export default function SignupPage() {
   const router = useRouter();
 
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    prn: "",
-    email: "",
-    password: "",
-  });
-
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [uid, setUid] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (e: any) => {
     e.preventDefault();
-    setError("");
+    setLoading(true);
 
-    if (!form.email.endsWith("@mmcoe.edu.in")) {
-      setError("Only @mmcoe.edu.in emails allowed");
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      alert(error.message);
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!data.user) {
+      alert("Signup failed");
+      setLoading(false);
+      return;
+    }
 
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
+    // Insert student profile
+    const { error: profileError } = await supabase
+      .from("students")
+      .insert({
+        id: data.user.id,
+        email,
+        uid,
       });
 
-      if (error) throw error;
-
-      const uid = generateUID();
-
-      await supabase.from("students").insert([
-        {
-          id: data.user?.id,
-          name: form.name,
-          phone: form.phone,
-          prn: form.prn,
-          email: form.email,
-          uid,
-        },
-      ]);
-
-      router.push("/login?role=student");
-    } catch (err: any) {
-      setError(err.message || "Signup failed");
-    } finally {
+    if (profileError) {
+      alert(profileError.message);
       setLoading(false);
+      return;
     }
+
+    // Set role cookie
+    await fetch("/api/set-role", {
+      method: "POST",
+      body: JSON.stringify({ role: "student" }),
+    });
+
+    router.push("/dashboard/student");
   };
 
   return (
-    <div className="max-w-md mx-auto py-16">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        Student Sign Up
-      </h2>
+    <div className="max-w-md mx-auto mt-10 bg-white p-6 rounded-xl shadow">
+      <h2 className="text-xl font-bold mb-4">Student Signup</h2>
 
       <form onSubmit={handleSignup} className="space-y-4">
         <input
-          name="name"
-          placeholder="Full Name"
+          type="text"
+          placeholder="College UID"
+          value={uid}
+          onChange={(e) => setUid(e.target.value)}
+          className="w-full border p-2 rounded"
           required
-          onChange={handleChange}
-          className="w-full border rounded-lg px-4 py-3"
         />
 
         <input
-          name="phone"
-          placeholder="Phone Number"
-          required
-          onChange={handleChange}
-          className="w-full border rounded-lg px-4 py-3"
-        />
-
-        <input
-          name="prn"
-          placeholder="PRN"
-          required
-          onChange={handleChange}
-          className="w-full border rounded-lg px-4 py-3"
-        />
-
-        <input
-          name="email"
           type="email"
-          placeholder="MMCOE Email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full border p-2 rounded"
           required
-          onChange={handleChange}
-          className="w-full border rounded-lg px-4 py-3"
         />
 
         <input
-          name="password"
           type="password"
           placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full border p-2 rounded"
           required
-          onChange={handleChange}
-          className="w-full border rounded-lg px-4 py-3"
         />
 
-        {error && (
-          <p className="text-red-500 text-sm text-center">{error}</p>
-        )}
-
         <button
-          type="submit"
+          className="w-full bg-blue-600 text-white p-2 rounded"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition"
         >
-          {loading ? "Creating account..." : "Sign Up"}
+          {loading ? "Creating..." : "Create Account"}
         </button>
       </form>
     </div>
