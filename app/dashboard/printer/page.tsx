@@ -1,119 +1,102 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-interface PrintRequest {
+interface Request {
   id: string;
   file_url: string;
   copies: number;
   color: string;
   status: string;
-  created_at: string;
 }
-
+  <button
+  onClick={async () => {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/login";
+  }}
+  className="mb-4 bg-red-500 text-white px-4 py-2 rounded"
+  >
+   Logout
+  </button>
 export default function PrinterDashboard() {
-  const router = useRouter();
-  const [requests, setRequests] = useState<PrintRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<Request[]>([]);
+
+  const fetchRequests = async () => {
+    const res = await fetch("/api/requests");
+    const data = await res.json();
+    setRequests(Array.isArray(data) ? data : []);
+  };
 
   useEffect(() => {
-    const role = localStorage.getItem("role");
-    if (role !== "printer") {
-      router.push("/");
-      return;
-    }
-
     fetchRequests();
   }, []);
 
-  const fetchRequests = async () => {
-    const { data } = await supabase
-      .from("print_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    setRequests(data || []);
-    setLoading(false);
-  };
-
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("print_requests").update({ status }).eq("id", id);
+    await fetch("/api/status", {
+      method: "POST",
+      body: JSON.stringify({ id, status }),
+    });
+
     fetchRequests();
   };
 
   return (
-    <div>
-      <h3 className="text-lg font-semibold mb-6">
-        All Print Requests
-      </h3>
+    <div className="max-w-4xl mx-auto mt-6">
+      <button
+        onClick={async () => {
+          await fetch("/api/logout", { method: "POST" });
+          window.location.href = "/login";
+        }}
+        className="mb-4 bg-red-500 text-white px-4 py-2 rounded"
+      >
+        Logout
+      </button>
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : requests.length === 0 ? (
-        <p className="text-gray-500">No print requests available.</p>
-      ) : (
-        <div className="space-y-4">
-          {requests.map((req) => (
-            <div
-              key={req.id}
-              className="bg-white p-4 rounded-lg shadow border"
+      <h2 className="text-xl font-bold mb-4">All Print Requests</h2>
+
+      <div className="space-y-4">
+        {requests.map((req) => (
+          <div
+            key={req.id}
+            className="bg-white p-4 rounded-xl shadow"
+          >
+            <p><strong>Copies:</strong> {req.copies}</p>
+            <p><strong>Type:</strong> {req.color}</p>
+            <p><strong>Status:</strong> {req.status}</p>
+
+            <a
+              href={req.file_url}
+              target="_blank"
+              className="text-blue-600 underline"
             >
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                <div>
-                  <p className="text-sm">Copies: {req.copies}</p>
-                  <p className="text-sm">
-                    Type: {req.color}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(req.created_at).toLocaleString()}
-                  </p>
-                  <a
-                    href={req.file_url}
-                    target="_blank"
-                    className="text-blue-600 text-sm"
-                  >
-                    View File
-                  </a>
-                </div>
+              Download
+            </a>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => updateStatus(req.id, "ready")}
-                    className="bg-green-600 text-white px-3 py-1 rounded text-xs"
-                  >
-                    Mark Ready
-                  </button>
-                  <button
-                    onClick={() => updateStatus(req.id, "collected")}
-                    className="bg-gray-700 text-white px-3 py-1 rounded text-xs"
-                  >
-                    Collected
-                  </button>
-                </div>
+            <div className="mt-2 space-x-2">
+              <button
+                onClick={() => updateStatus(req.id, "approved")}
+                className="bg-green-500 text-white px-3 py-1 rounded"
+              >
+                Approve
+              </button>
 
-                <span
-                  className={`px-3 py-1 text-xs rounded-full ${
-                    req.status === "pending"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : req.status === "ready"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  {req.status}
-                </span>
-              </div>
+              <button
+                onClick={() => updateStatus(req.id, "rejected")}
+                className="bg-yellow-500 text-white px-3 py-1 rounded"
+              >
+                Reject
+              </button>
+
+              <button
+                onClick={() => updateStatus(req.id, "printed")}
+                className="bg-blue-500 text-white px-3 py-1 rounded"
+              >
+                Mark Printed
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
